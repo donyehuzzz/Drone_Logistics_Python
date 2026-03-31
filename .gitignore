@@ -1,0 +1,21 @@
+# 1. 忽略虚拟环境
+.venv/
+env/
+venv/
+
+# 2. 忽略 Python 运行时产生的缓存垃圾
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# 3. 忽略本地数据和输出结果 (重要！)
+# 我们只上传代码，不上传数据包和生成的图片
+data/
+output/
+*.npz
+*.mat
+*.xlsx
+*.csv
+
+# 4. 忽略 VS Code 配置
+.vscode/
