@@ -1,45 +1,40 @@
 import numpy as np
+import pandas as pd
 from scipy.signal import convolve2d
 
 def find_candidate_sites(type_matrix, N):
-    """
-    对应 MATLAB: find_candidate_sites.m
-    筛选满足 N 阶摩尔邻域约束的有效备选起降点 (卷积极速版)
-    """
-    if not isinstance(N, int) or N < 1:
-        raise ValueError(f"摩尔邻域阶数 N 必须是正整数！当前输入：{N}")
-
-    # 1. 生成初始的空白单元格掩码 (1表示空白，0表示非空白)
+    """【Step 1】N 阶摩尔邻域卷积筛选：找出所有物理上可行（周围全为空白区）的网格"""
     blank_mask = (type_matrix == 9).astype(int)
+    kernel = np.ones((2 * N + 1, 2 * N + 1))
+    # 只有当中心点周围 (2N+1)x(2N+1) 全为 9 时，该点才可行
+    neighbourhood_sum = convolve2d(blank_mask, kernel, mode='same')
+    valid_judging = (neighbourhood_sum == kernel.size).astype(float)
     
-    # 获取空白单元格的线性一维索引 (对应 MATLAB 的 find)
-    blank_indices_linear = np.flatnonzero(blank_mask)
-    num_blank_units = len(blank_indices_linear)
+    valid_rows, valid_cols = np.where(valid_judging == 1)
+    valid_coords = np.column_stack((valid_rows, valid_cols))
+    return valid_coords, valid_judging
 
-    # ===================== 核心优化：二维卷积替代邻域遍历 =====================
-    window_size = 2 * N + 1
-    kernel = np.ones((window_size, window_size))
+def select_grid_top_k(valid_judging, comprehensive_score, k, N_grid):
+    """【Step 2】空间降采样：在 N_grid x N_grid 的大网格中挑选得分最高的 K 个点"""
+    rows, cols = np.where(valid_judging == 1)
+    scores = comprehensive_score[rows, cols]
+    
+    if len(rows) == 0:
+        return None
 
-    # 使用 convolve2d 计算每个单元格邻域内的空白网格数量
-    # mode='same' 保证输出矩阵与原矩阵大小一致，boundary='fill', fillvalue=0 等价于边缘越界补 0
-    neighbourhood_sum = convolve2d(blank_mask, kernel, mode='same', boundary='fill', fillvalue=0)
+    # 计算该点属于哪个大网格 (Python 0-indexed)
+    grid_r = rows // N_grid
+    grid_c = cols // N_grid
 
-    # 如果一个网格的邻域和等于窗口总面积，说明它周围全都是9
-    target_sum = window_size ** 2
-    valid_vertiports_judging = (neighbourhood_sum == target_sum).astype(float)
+    # 利用 Pandas 进行快速分组排序
+    df = pd.DataFrame({
+        'row': rows, 'col': cols, 'score': scores,
+        'grid_r': grid_r, 'grid_c': grid_c
+    })
 
-    # 2. 从判断矩阵中提取坐标
-    valid_rows, valid_cols = np.where(valid_vertiports_judging == 1)
-    # 将行和列拼成 [numCandidates, 2] 的坐标矩阵
-    valid_vertiports_coords = np.column_stack((valid_rows, valid_cols))
-    num_valid_vertiports = len(valid_rows)
+    # 先按网格 ID 排序，网格内按得分降序，取前 K 个
+    selected_df = df.sort_values(by=['grid_r', 'grid_c', 'score'], ascending=[True, True, False])
+    selected_df = selected_df.groupby(['grid_r', 'grid_c']).head(k)
 
-    # 3. 找到有效点在“初始空白单元格列表”中的相对索引
-    # flatten() 将二维矩阵拉平，方便通过一维索引查询
-    is_valid_in_blank_list = valid_vertiports_judging.flatten()[blank_indices_linear]
-    valid_vertiports_indices = np.where(is_valid_in_blank_list == 1)[0]
-
-    print(f"   - 地图尺寸: {type_matrix.shape[0]} x {type_matrix.shape[1]}")
-    print(f"   - 满足 {N} 阶摩尔邻域约束的备选起降点：{num_valid_vertiports}个 (由 {num_blank_units} 个初始空白区中筛选)")
-
-    return valid_vertiports_coords, valid_vertiports_indices, valid_vertiports_judging
+    # 返回结果包含：[行, 列, 得分, 网格行ID, 网格列ID]
+    return selected_df.values

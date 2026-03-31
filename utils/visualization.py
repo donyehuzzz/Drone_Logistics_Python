@@ -1,108 +1,87 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
-from mpl_toolkits.mplot3d import Axes3D
-
-# 全局字体设置，防止图表中文显示方块
-plt.rcParams['font.sans-serif'] = ['SimHei', 'Arial Unicode MS']
-plt.rcParams['axes.unicode_minus'] = False
 
 def set_grid_ticks(ax, rows, cols, step=50):
-    """辅助函数：强制将坐标轴刻度锁定为指定的步长 (默认 50)"""
+    """统一坐标轴刻度与范围锁定"""
     ax.set_xticks(np.arange(0, cols + step, step))
     ax.set_yticks(np.arange(0, rows + step, step))
-    # 限制显示范围，防止越界
     ax.set_xlim(-0.5, cols - 0.5)
-    ax.set_ylim(rows - 0.5, -0.5) # imshow 默认 y 轴向下递增
+    ax.set_ylim(rows - 0.5, -0.5)
 
-def plot_map_3d(Z, title='3D Elevation Map', xlabel='Col (Grid)', ylabel='Row (Grid)', zlabel='Elevation (m)', save_path=None):
-    fig = plt.figure(figsize=(10, 8))
+def plot_map_3d(Z, title='', save_path=None):
+    """绘制 3D 地形/建筑高程图"""
+    fig = plt.figure(figsize=(10, 7))
     ax = fig.add_subplot(111, projection='3d')
-    
-    rows, cols = Z.shape
-    X, Y = np.meshgrid(np.arange(cols), np.arange(rows))
-    
-    surf = ax.plot_surface(X, Y, Z, cmap='viridis', edgecolor='none', alpha=0.9)
-    fig.colorbar(surf, ax=ax, shrink=0.5, aspect=10, label='m')
-    
-    ax.set_title(title, fontsize=14, fontweight='bold')
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    ax.set_zlabel(zlabel)
-    
-    # 设置 3D 轴的刻度
-    ax.set_xticks(np.arange(0, cols + 50, 50))
-    ax.set_yticks(np.arange(0, rows + 50, 50))
-    
-    ax.view_init(elev=30, azim=-37.5)
-    ax.invert_yaxis()
-    plt.tight_layout()
-    
-    if save_path:
-        fig.savefig(save_path, dpi=600, bbox_inches='tight')
-    plt.close(fig) # 关键：关闭内存中的图形，彻底解决阻塞！
-
-def plot_map_with_nodes(elevation, demand_points, supply_points, title='Map with Nodes', save_path=None):
-    fig, ax = plt.subplots(figsize=(10, 8))
-    rows, cols = elevation.shape
-    
-    binary_matrix = (elevation != 0).astype(int)
-    cmap = ListedColormap(['white', '#E6E6FA']) 
-    ax.imshow(binary_matrix, cmap=cmap)
-    
-    ax.scatter(demand_points[:, 2], demand_points[:, 1], c='blue', s=30, edgecolors='k', label='需求点', zorder=2)
-    ax.scatter(supply_points[:, 2], supply_points[:, 1], c='red', marker='s', s=80, edgecolors='k', label='配送中心', zorder=3)
-    
-    ax.set_title(title, fontsize=14, fontweight='bold')
-    ax.set_xlabel('Col (Grid)')
-    ax.set_ylabel('Row (Grid)')
-    
-    set_grid_ticks(ax, rows, cols) # 强制 50 步长刻度
-    ax.legend(loc='best')
-    ax.grid(True, linestyle='--', alpha=0.5)
-    
+    X, Y = np.meshgrid(np.arange(Z.shape[1]), np.arange(Z.shape[0]))
+    surf = ax.plot_surface(X, Y, Z, cmap='viridis', edgecolor='none')
+    ax.view_init(30, -37.5)
+    ax.set_title(title, fontweight='bold')
     if save_path:
         fig.savefig(save_path, dpi=600, bbox_inches='tight')
     plt.close(fig)
 
-def plot_binary_matrix(binary_matrix, title='Candidate Sites', save_path=None):
-    fig, ax = plt.subplots(figsize=(10, 8))
-    rows, cols = binary_matrix.shape
-    
-    cmap = ListedColormap(['white', '#0072BD']) 
-    ax.imshow(binary_matrix, cmap=cmap)
-    
-    ax.set_title(title, fontsize=14, fontweight='bold')
-    ax.set_xlabel('Col (Grid)')
-    ax.set_ylabel('Row (Grid)')
-    
-    set_grid_ticks(ax, rows, cols)
-    ax.grid(True, linestyle='--', alpha=0.5)
-    
-    import matplotlib.patches as mpatches
-    patch1 = mpatches.Patch(color='#0072BD', label='Viable Area')
-    patch0 = mpatches.Patch(color='white', label='Non-viable Area')
-    ax.legend(handles=[patch0, patch1], loc='best')
-    
+def plot_map_with_nodes(elevation, demand, supply, title='', save_path=None):
+    """绘制节点分布图"""
+    fig, ax = plt.subplots(figsize=(10, 7))
+    # 背景底色
+    ax.imshow(elevation != 0, cmap=ListedColormap(['white', '#E6E6FA']))
+    # 需求点 (蓝色)
+    ax.scatter(demand[:, 2], demand[:, 1], c='blue', s=20, alpha=0.6, label='Demand Points')
+    # 配送点 (红色方块)
+    ax.scatter(supply[:, 2], supply[:, 1], c='red', marker='s', s=80, edgecolors='black', label='Supply Centers')
+    set_grid_ticks(ax, *elevation.shape)
+    ax.legend()
+    ax.set_title(title, fontweight='bold')
     if save_path:
         fig.savefig(save_path, dpi=600, bbox_inches='tight')
     plt.close(fig)
 
-def plot_score(score_matrix, title='Score Heatmap', cmap_name='hot', save_path=None):
-    fig, ax = plt.subplots(figsize=(10, 8))
-    rows, cols = score_matrix.shape
-    
+def plot_binary_matrix(matrix, title='', save_path=None):
+    """绘制 0-1 二值矩阵图（如可行域）"""
+    fig, ax = plt.subplots(figsize=(10, 7))
+    ax.imshow(matrix, cmap=ListedColormap(['white', '#0072BD']))
+    set_grid_ticks(ax, *matrix.shape)
+    ax.set_title(title, fontweight='bold')
+    if save_path:
+        fig.savefig(save_path, dpi=600, bbox_inches='tight')
+    plt.close(fig)
+
+def plot_score(score_matrix, title='', cmap_name='hot', save_path=None):
+    """绘制评分热力图"""
+    fig, ax = plt.subplots(figsize=(10, 7))
+    # 屏蔽 0 分区域，使底色干净
     plot_data = np.where(score_matrix == 0, np.nan, score_matrix)
-    ax.set_facecolor('white')
     im = ax.imshow(plot_data, cmap=cmap_name)
-    fig.colorbar(im, ax=ax, label='Value', fraction=0.046, pad=0.04)
+    set_grid_ticks(ax, *score_matrix.shape)
+    plt.colorbar(im, label='Score')
+    ax.set_title(title, fontweight='bold')
+    if save_path:
+        fig.savefig(save_path, dpi=600, bbox_inches='tight')
+    plt.close(fig)
+
+def plot_grid_selection(valid_judging, selected_points, N, title='', save_path=None):
+    """绘制降采样精英点筛选结果"""
+    fig, ax = plt.subplots(figsize=(10, 8))
+    rows, cols = valid_judging.shape
     
-    ax.set_title(title, fontsize=14, fontweight='bold')
-    ax.set_xlabel('Col (Grid)')
-    ax.set_ylabel('Row (Grid)')
+    # 1. 绘制底色和所有可行格点
+    ax.imshow(valid_judging == 0, cmap='Greys', alpha=0.05) 
+    all_r, all_c = np.where(valid_judging == 1)
+    ax.scatter(all_c, all_r, s=1, c='lightgray', label='Viable Area')
     
+    # 2. 绘制筛选出的红点
+    ax.scatter(selected_points[:, 1], selected_points[:, 0], s=12, c='red', label='Elite Candidates')
+    
+    # 3. 绘制大网格辅助线
+    for r in range(0, rows, N):
+        ax.axhline(r, color='blue', linestyle='--', linewidth=0.3, alpha=0.2)
+    for c in range(0, cols, N):
+        ax.axvline(c, color='blue', linestyle='--', linewidth=0.3, alpha=0.2)
+
+    ax.set_title(title, fontweight='bold')
     set_grid_ticks(ax, rows, cols)
-    ax.grid(True, linestyle='--', alpha=0.3)
+    ax.legend(loc='upper right')
     
     if save_path:
         fig.savefig(save_path, dpi=600, bbox_inches='tight')
